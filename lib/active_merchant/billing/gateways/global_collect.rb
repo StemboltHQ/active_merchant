@@ -72,6 +72,7 @@ module ActiveMerchant #:nodoc:
             'EFFORTID' => 1
           }
         }
+        add_amount(post['PAYMENT'], money, options)
         commit('SET_PAYMENT', post, authorization)
       end
 
@@ -96,6 +97,11 @@ module ActiveMerchant #:nodoc:
         }
         add_amount(post['PAYMENT'], money, options)
         commit('DO_REFUND', post, authorization)
+      end
+
+      def credit(money, authorization, options = {})
+        deprecated CREDIT_DEPRECATION_MESSAGE
+        refund(money, authorization, options)
       end
 
       private

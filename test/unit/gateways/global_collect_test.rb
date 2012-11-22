@@ -68,6 +68,8 @@ class GlobalCollectTest < Test::Unit::TestCase
       assert_match %r(<ACTION>SET_PAYMENT</ACTION>), data
       assert_match %r(<ORDERID>#{order_id}</ORDERID>), data
       assert_match %r(<PAYMENTPRODUCTID>1</PAYMENTPRODUCTID>), data
+      assert_match %r(<AMOUNT>100</AMOUNT>), data
+      assert_match %r(<CURRENCYCODE>CAD</CURRENCYCODE>), data
     end.respond_with(successful_empty_response)
     assert_instance_of Response, response
     assert_success response
@@ -111,12 +113,21 @@ class GlobalCollectTest < Test::Unit::TestCase
     end.check_request do |endpoint, data, headers|
       assert_match %r(<ACTION>DO_REFUND</ACTION>), data
       assert_match %r(<ORDERID>#{order_id}</ORDERID>), data
+      assert_match %r(<AMOUNT>100</AMOUNT>), data
+      assert_match %r(<CURRENCYCODE>CAD</CURRENCYCODE>), data
     end.respond_with(successful_empty_response)
     assert_instance_of Response, response
     assert_success response
     assert_equal "Success", response.message
 
     assert response.test?
+  end
+
+  def test_deprecated_credit
+    @gateway.expects(:refund).with(@amount, "transaction_id", @options)
+    assert_deprecation_warning(Gateway::CREDIT_DEPRECATION_MESSAGE, @gateway) do
+      @gateway.credit(@amount, "transaction_id", @options)
+    end
   end
 
   private
