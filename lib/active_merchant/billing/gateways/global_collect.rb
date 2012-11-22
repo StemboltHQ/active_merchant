@@ -106,7 +106,7 @@ module ActiveMerchant #:nodoc:
 
       private
 
-      def response(body, authorization)
+      def parse(body, authorization)
         xml = Nokogiri::XML(body)
         response = xml.xpath('/XML/REQUEST/RESPONSE')
         result = response.xpath('./RESULT').text
@@ -116,7 +116,9 @@ module ActiveMerchant #:nodoc:
         if result == 'OK'
           params = {}
           if row = response.at('./ROW')
-            params = parse_row(row)
+            row.element_children.each do |element|
+              params[element.name.downcase.to_sym] = element.text
+            end
           end
 
           Response.new(true, "Success", params, options)
@@ -124,12 +126,6 @@ module ActiveMerchant #:nodoc:
           error = response.xpath('./ERROR/MESSAGE').map{|x| x.text.strip }.join('; ')
           Response.new(false, error, {}, options)
         end
-      end
-
-      def parse_row row
-        Hash[row.element_children.map do |element|
-          [element.name, element.content]
-        end]
       end
 
       def add_params xml, params
@@ -162,7 +158,7 @@ module ActiveMerchant #:nodoc:
         xml = post_data(action, params)
         url = test?? test_url : live_url
         headers = { 'Content-Type' => 'text/xml; charset=utf-8' }
-        response(ssl_post(url, xml, headers), authorization)
+        parse(ssl_post(url, xml, headers), authorization)
       end
 
       def add_amount hash, money, options
