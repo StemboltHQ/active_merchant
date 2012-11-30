@@ -33,9 +33,10 @@ module ActiveMerchant #:nodoc:
         requires!(options, :order_id)
         order_id = format_order_id(options[:order_id])
 
+        requires!(options, :billing_address)
+        requires!(options[:billing_address], :country)
         country = options[:billing_address][:country]
         payment_product = PAYMENT_PRODUCTS.fetch(creditcard.brand)
-        authorization = "#{order_id}|#{payment_product}"
 
         post = {
           'ORDER' => {
@@ -53,7 +54,27 @@ module ActiveMerchant #:nodoc:
         add_amount(post['ORDER'], money, options)
         add_amount(post['PAYMENT'], money, options)
         add_credit_card(post['PAYMENT'], creditcard, options)
-        commit('INSERT_ORDERWITHPAYMENT', post, authorization)
+        response = commit('INSERT_ORDERWITHPAYMENT', post)
+        if successful?(response)
+          effort_id = response['ROW']['EFFORTID']
+          authorization = [order_id, payment_product, effort_id].join('|')
+          build_response response, authorization
+        else
+          build_response response, nil
+        end
+      end
+      def build_response response, authorization, params={}
+        puts response.to_yaml
+        options = {:test => test?}
+        if successful?(response)
+          options[:authorization] = authorization
+          Response.new true, "Success", params, options
+        else
+          message = Array.wrap(response['ERROR']).map do |error|
+            error['MESSAGE'].strip
+          end.join('; ')
+          Response.new false, message, params, options
+        end
       end
 
       def purchase(money, creditcard, options = {})
@@ -73,7 +94,8 @@ module ActiveMerchant #:nodoc:
           }
         }
         add_amount(post['PAYMENT'], money, options)
-        commit('SET_PAYMENT', post, authorization)
+        response = commit('SET_PAYMENT', post)
+        build_response(response, authorization)
       end
 
       def void(authorization, options = {})
@@ -85,7 +107,8 @@ module ActiveMerchant #:nodoc:
             'EFFORTID' => 1
           }
         }
-        commit('CANCEL_PAYMENT', post, authorization)
+        response = commit('CANCEL_PAYMENT', post)
+        build_response response, authorization
       end
 
       def refund(money, authorization, options = {})
@@ -96,7 +119,8 @@ module ActiveMerchant #:nodoc:
           }
         }
         add_amount(post['PAYMENT'], money, options)
-        commit('DO_REFUND', post, authorization)
+        response = commit('DO_REFUND', post)
+        build_response(response, authorization)
       end
 
       def credit(money, authorization, options = {})
@@ -106,26 +130,11 @@ module ActiveMerchant #:nodoc:
 
       private
 
-      def parse(body, authorization)
+      def parse(body)
         xml = Nokogiri::XML(body)
+        puts xml.to_xml(indent: 2)
         response = xml.xpath('/XML/REQUEST/RESPONSE')
-        result = response.xpath('./RESULT').text
-
-        options = { :test => test?, :authorization => authorization }
-
-        if result == 'OK'
-          params = {}
-          if row = response.at('./ROW')
-            row.element_children.each do |element|
-              params[element.name.downcase.to_sym] = element.text
-            end
-          end
-
-          Response.new(true, "Success", params, options)
-        else
-          error = response.xpath('./ERROR/MESSAGE').map{|x| x.text.strip }.join('; ')
-          Response.new(false, error, {}, options)
-        end
+        return Hash.from_xml(response.to_xml)['RESPONSE']
       end
 
       def add_params xml, params
@@ -145,7 +154,7 @@ module ActiveMerchant #:nodoc:
             xml.tag! 'ACTION', action
             xml.tag! 'META' do
               xml.tag! 'MERCHANTID', @options[:merchant_id]
-              xml.tag! 'VERSION', '1.0'
+              xml.tag! 'VERSION', '2.0'
             end
             xml.tag! 'PARAMS' do
               add_params(xml, params)
@@ -154,22 +163,26 @@ module ActiveMerchant #:nodoc:
         end.to_s
       end
 
-      def commit(action, params, authorization)
+      def commit(action, params)
         xml = post_data(action, params)
         url = test?? test_url : live_url
         headers = { 'Content-Type' => 'text/xml; charset=utf-8' }
-        parse(ssl_post(url, xml, headers), authorization)
+        parse(ssl_post(url, xml, headers))
       end
 
-      def add_amount hash, money, options
-        hash['AMOUNT'] = amount(money)
-        hash['CURRENCYCODE'] = options[:currency] || currency(money)
+      def add_amount post, money, options
+        post['AMOUNT'] = amount(money)
+        post['CURRENCYCODE'] = options[:currency] || currency(money)
       end
 
       def add_credit_card post, creditcard, options={}
         post['CREDITCARDNUMBER'] = creditcard.number
         post['EXPIRYDATE'] = expiry(creditcard)
         post['CVV'] = creditcard.verification_value if creditcard.verification_value?
+      end
+
+      def successful? response
+        response['RESULT'] == 'OK'
       end
 
       # only numeric
