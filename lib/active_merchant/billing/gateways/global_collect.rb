@@ -63,14 +63,13 @@ module ActiveMerchant #:nodoc:
           build_response response, nil
         end
       end
-      def build_response response, authorization, params={}
-        puts response.to_yaml
+      def build_response params, authorization
         options = {:test => test?}
-        if successful?(response)
+        if successful?(params)
           options[:authorization] = authorization
           Response.new true, "Success", params, options
         else
-          message = Array.wrap(response['ERROR']).map do |error|
+          message = Array.wrap(params['ERROR']).map do |error|
             error['MESSAGE'].strip
           end.join('; ')
           Response.new false, message, params, options
@@ -112,7 +111,7 @@ module ActiveMerchant #:nodoc:
       end
 
       def refund(money, authorization, options = {})
-        order_id, _ = authorization.split('|')
+        order_id, _, _ = authorization.split('|')
         post = {
           'PAYMENT' => {
             'ORDERID' => order_id
