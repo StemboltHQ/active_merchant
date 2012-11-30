@@ -85,12 +85,12 @@ module ActiveMerchant #:nodoc:
       end
 
       def capture(money, authorization, options = {})
-        order_id, payment_product = authorization.split('|')
+        order_id, payment_product, effort_id = authorization.split('|')
         post = {
           'PAYMENT' => {
             'ORDERID' => order_id,
             'PAYMENTPRODUCTID' => payment_product,
-            'EFFORTID' => 1
+            'EFFORTID' => effort_id
           }
         }
         add_amount(post['PAYMENT'], money, options)
@@ -99,12 +99,12 @@ module ActiveMerchant #:nodoc:
       end
 
       def void(authorization, options = {})
-        order_id, _ = authorization.split('|')
+        order_id, _, effort_id = authorization.split('|')
         post = {
           'PAYMENT' => {
             'ORDERID' => order_id,
-            'ATTEMPTID' => 1,
-            'EFFORTID' => 1
+            'EFFORTID' => effort_id,
+            'ATTEMPTID' => 1
           }
         }
         response = commit('CANCEL_PAYMENT', post)
