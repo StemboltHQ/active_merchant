@@ -73,6 +73,12 @@ module ActiveMerchant #:nodoc:
         end
       end
 
+      def status order_id
+        post = { 'ORDER' => { 'ORDERID' => order_id } }
+        response = commit('GET_ORDERSTATUS', post)
+        build_response response
+      end
+
       def purchase(money, creditcard, options = {})
         MultiResponse.new.tap do |r|
           r.process{authorize(money, creditcard, options)}

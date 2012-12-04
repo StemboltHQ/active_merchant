@@ -9,8 +9,10 @@ class RemoteGlobalCollectTest < Test::Unit::TestCase
     @amount = 100
     @credit_card = credit_card('4000100011112224')
 
+    @order_id = rand(9999999999)
+
     @options = {
-      :order_id => rand(9999999999),
+      :order_id => @order_id,
       :billing_address => address,
       :description => 'Store Purchase',
       :currency => 'CAD'
@@ -21,13 +23,19 @@ class RemoteGlobalCollectTest < Test::Unit::TestCase
     assert response = @gateway.purchase(@amount, @credit_card, @options)
     assert_success response
     assert_equal 'Success', response.message
+
+    order_status = fetch_status
+    assert_equal '800', order_status['STATUSID']
+    assert_equal '100', order_status['AMOUNT']
+    assert_equal 'CAD', order_status['CURRENCYCODE']
+    assert_equal '1',   order_status['EFFORTID']
   end
 
   def test_unsuccessful_purchase
     @credit_card.year = 2010
     assert response = @gateway.purchase(@amount, @credit_card, @options)
     assert_failure response
-    assert_match /REQUEST \d+ EXPIRY DATE \(0910\) IS IN THE PAST OR NOT IN CORRECT MMYY FORMAT/, response.message
+    assert_match(/REQUEST \d+ EXPIRY DATE \(0910\) IS IN THE PAST OR NOT IN CORRECT MMYY FORMAT/, response.message)
   end
 
   def test_authorize_and_capture
@@ -36,8 +44,21 @@ class RemoteGlobalCollectTest < Test::Unit::TestCase
     assert_success auth
     assert_equal 'Success', auth.message
     assert auth.authorization
+
+    order_status = fetch_status
+    assert_equal '600', order_status['STATUSID']
+    assert_equal '100', order_status['AMOUNT']
+    assert_equal 'CAD', order_status['CURRENCYCODE']
+    assert_equal '1',   order_status['EFFORTID']
+
     assert capture = @gateway.capture(amount, auth.authorization)
     assert_success capture
+
+    order_status = fetch_status
+    assert_equal '800', order_status['STATUSID']
+    assert_equal '100', order_status['AMOUNT']
+    assert_equal 'CAD', order_status['CURRENCYCODE']
+    assert_equal '1',   order_status['EFFORTID']
   end
 
   def test_failed_capture
@@ -51,9 +72,13 @@ class RemoteGlobalCollectTest < Test::Unit::TestCase
     assert_success auth
     assert_equal 'Success', auth.message
     assert auth.authorization
+    assert_equal '600', fetch_status['STATUSID']
+
     assert void = @gateway.void(auth.authorization)
     assert_equal 'Success', void.message
     assert_success void
+
+    assert_equal '99999', fetch_status['STATUSID']
   end
 
   def test_purchase_and_refund
@@ -67,10 +92,21 @@ class RemoteGlobalCollectTest < Test::Unit::TestCase
     assert_equal 'ORDER WITHOUT REFUNDABLE PAYMENTS', refund.message
   end
 
+  def test_unsuccessful_status
+    assert response = @gateway.status(@order_id)
+    assert_failure response
+    assert_match(/GET_ORDERSTATUS ORDER NOT FOUND$/, response.message)
+  end
+
   def test_invalid_merchant_id
     gateway = GlobalCollectGateway.new(:merchant_id => '')
     assert response = gateway.purchase(@amount, @credit_card, @options)
     assert_failure response
     assert_equal 'NO MERCHANTID ACTION INSERT_ORDERWITHPAYMENT (130) IS NOT ALLOWED', response.message
+  end
+
+  private
+  def fetch_status
+    @gateway.status(@order_id).params['STATUS']
   end
 end
