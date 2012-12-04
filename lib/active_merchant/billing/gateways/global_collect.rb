@@ -57,22 +57,19 @@ module ActiveMerchant #:nodoc:
         response = commit('INSERT_ORDERWITHPAYMENT', post)
         if successful?(response)
           effort_id = response['ROW']['EFFORTID']
-          authorization = [order_id, payment_product, effort_id].join('|')
-          build_response response, authorization
+          build_response response, "#{order_id}|#{payment_product}|#{effort_id}"
         else
           build_response response, nil
         end
       end
-      def build_response params, authorization
-        options = {:test => test?}
+      def build_response params, authorization=nil
         if successful?(params)
-          options[:authorization] = authorization
-          Response.new true, "Success", params, options
+          Response.new true, "Success", params, {:test => test?, :authorization => authorization}
         else
           message = Array.wrap(params['ERROR']).map do |error|
             error['MESSAGE'].strip
           end.join('; ')
-          Response.new false, message, params, options
+          Response.new false, message,  params, {:test => test?}
         end
       end
 
@@ -112,11 +109,7 @@ module ActiveMerchant #:nodoc:
 
       def refund(money, authorization, options = {})
         order_id, _, _ = authorization.split('|')
-        post = {
-          'PAYMENT' => {
-            'ORDERID' => order_id
-          }
-        }
+        post = { 'PAYMENT' => { 'ORDERID' => order_id } }
         add_amount(post['PAYMENT'], money, options)
         response = commit('DO_REFUND', post)
         build_response(response, authorization)
@@ -131,35 +124,18 @@ module ActiveMerchant #:nodoc:
 
       def parse(body)
         xml = Nokogiri::XML(body)
-        puts xml.to_xml(indent: 2)
         response = xml.xpath('/XML/REQUEST/RESPONSE')
         return Hash.from_xml(response.to_xml)['RESPONSE']
       end
 
-      def add_params xml, params
-        params.each do |k,v|
-          if v.is_a? Hash
-            xml.tag!(k){ add_params xml, v }
-          else
-            xml.tag!(k, v)
-          end
-        end
-      end
-
       def post_data(action, params = {})
-        xml = Builder::XmlMarkup.new :indent => 2
-        xml.tag! 'XML' do
-          xml.tag! 'REQUEST' do
-            xml.tag! 'ACTION', action
-            xml.tag! 'META' do
-              xml.tag! 'MERCHANTID', @options[:merchant_id]
-              xml.tag! 'VERSION', '2.0'
-            end
-            xml.tag! 'PARAMS' do
-              add_params(xml, params)
-            end
-          end
-        end.to_s
+        {
+          'REQUEST' => {
+            'ACTION' => action,
+            'META' => {'MERCHANTID' => @options[:merchant_id], 'VERSION' => '2.0'},
+            'PARAMS' => params
+          }
+        }.to_xml(:skip_instruct => true, :skip_types => true, :root => 'XML', :indent => 2)
       end
 
       def commit(action, params)
