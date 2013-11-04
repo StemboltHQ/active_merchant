@@ -104,6 +104,11 @@ eway_managed:
   password: 'test123'
 
 # Working credentials, no need to replace
+eway_rapid:
+  login: "F9802CIVgUgNaD8y/H52MBMnL5OvMoy4cYimpi1L/dCXeNNR6or3vLPoC9GjeLVdA7ymi+"
+  password: "sandbox1"
+
+# Working credentials, no need to replace
 exact:
   login: "A00427-01"
   password: testus
@@ -126,6 +131,13 @@ garanti:
   terminal_id: 111995
   merchant_id: 600218
   password: "123qweASD"
+
+global_collect:
+  merchant_id: MERCHANT_ID
+
+gmo:
+  shop_id: SHOP_ID
+  password: PASSWORD
 
 # login: merchant number
 # password: password for the PEM secret key
@@ -568,3 +580,4 @@ wirecard:
 world_pay_gateway:
   login: LOGIN
   password: PASSWORD
+
