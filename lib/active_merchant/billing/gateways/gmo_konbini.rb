@@ -15,7 +15,7 @@ module ActiveMerchant #:nodoc:
 
       def initialize(options = {})
         requires!(options, :shop_id, :password, :shop_name, :shop_phone, :shop_hours)
-        @shop_name = options[:shop_name].encode('Shift_JIS')
+        @shop_name = encode_shift_jis(options[:shop_name])
         @shop_phone = options[:shop_phone]
         @shop_hours = options[:shop_hours]
         super
@@ -105,9 +105,15 @@ module ActiveMerchant #:nodoc:
       end
 
       def add_customer_info( post, billing_address )
-        post[:CustomerName] = billing_address[:name].encode('Shift_JIS') # .. this this last+first
-        post[:CustomerKana] = billing_address[:kana].encode('Shift_JIS') # spree_kana specific
+        post[:CustomerName] = encode_shift_jis(billing_address[:name]) # .. this this last+first
+        post[:CustomerKana] = encode_shift_jis(billing_address[:kana]) # spree_kana specific
         post[:TelNo] = billing_address[:phone].gsub(/\D/,'')
+      end
+
+      def encode_shift_jis(string)
+        string.encode('Shift_JIS')
+      rescue Encoding::UndefinedConversionError
+        string
       end
     end
   end
