@@ -121,6 +121,7 @@ module ActiveMerchant #:nodoc:
 
         add_customer_data(xml, options)
         add_invoice(xml, options)
+        add_card_authentication_data(xml, options)
 
         xml.target!
       end
@@ -131,6 +132,7 @@ module ActiveMerchant #:nodoc:
         add_identification(xml, identification)
         add_amount(xml, money)
         add_customer_data(xml, options)
+        add_card_authentication_data(xml, options)
 
         xml.target!
       end
@@ -185,6 +187,12 @@ module ActiveMerchant #:nodoc:
           xml.tag! "CVD_Presence_Ind", "1"
           xml.tag! "VerificationStr2", credit_card.verification_value
         end
+      end
+
+      def add_card_authentication_data(xml, options)
+        xml.tag! "CAVV", options[:cavv]
+        xml.tag! "XID", options[:xid]
+        xml.tag! "Ecommerce_Flag", options[:eci]
       end
 
       def add_credit_card_token(xml, store_authorization)
